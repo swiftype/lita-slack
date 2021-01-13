@@ -78,13 +78,8 @@ module Lita
               params
             )
 
-            if next_page['error'] == 'ratelimited' && next_page['retry_after'] < 5
-              sleep(next_page['retry_after'])
-              old_cursor = nil
-            else
-              next_cursor = fetch_cursor(next_page)
-              result[result_field] += next_page[result_field]
-            end
+            next_cursor = fetch_cursor(next_page)
+            result[result_field] += next_page[result_field]
           end
           result
         end
@@ -188,12 +183,19 @@ module Lita
             unless config.proxy.nil?
               options = { proxy: config.proxy }
             end
-            Faraday.new(options)
+            retry_options = {
+              retry_statuses: [429]
+            }
+            Faraday.new(options) do |f|
+              f.request :url_encoded
+              f.request :retry, retry_options
+              f.adapter Faraday.default_adapter
+            end
           end
         end
 
         def parse_response(response, method)
-          unless response.status == 429 || response.success?
+          unless response.success?
             raise "Slack API call to #{method} failed with status code #{response.status}: '#{response.body}'. Headers: #{response.headers}"
           end
 
@@ -201,7 +203,7 @@ module Lita
         end
 
         def fetch_cursor(page)
-          page.dig("response_metadata", "next_cursor")
+          page.dig("response_metadata", "next_cursor") || ""
         end
       end
     end
