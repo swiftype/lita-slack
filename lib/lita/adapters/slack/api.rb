@@ -177,14 +177,22 @@ module Lita
 
         def connection
           if stubs
-            Faraday.new { |faraday| faraday.adapter(:test, stubs) }
+            retry_options = {
+              retry_statuses: [429],
+              methods: %i[get post]
+            }
+            @stub_connection ||= Faraday.new do |faraday|
+              faraday.request :retry, retry_options
+              faraday.adapter :test, stubs
+            end
           else
             options = {}
             unless config.proxy.nil?
               options = { proxy: config.proxy }
             end
             retry_options = {
-              retry_statuses: [429]
+              retry_statuses: [429],
+              methods: %i[get post]
             }
             Faraday.new(options) do |f|
               f.request :url_encoded

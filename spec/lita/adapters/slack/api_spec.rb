@@ -197,6 +197,26 @@ describe Lita::Adapters::Slack::API do
         )
       end
     end
+
+    describe "with a Slack API limit error" do
+      let(:calls) { [] }
+      let(:stubs) do
+        Faraday::Adapter::Test::Stubs.new do |stub|
+          stub.post('https://slack.com/api/conversations.list', token: token, types: 'public_channel') do |env|
+            calls << env.dup
+            [429, { 'Retry-After': "0.1" }, '']
+          end
+        end
+      end
+
+      it "raises a RuntimeError after two calls" do
+        expect { subject.channels_list }.to raise_error(
+          "Slack API call to conversations.list failed with status code 429: ''. Headers: {\"Retry-after\"=>\"0.1\"}"
+        )
+
+        expect(calls.size).to eq(3)
+      end
+    end
   end
 
   describe "#groups_list" do
