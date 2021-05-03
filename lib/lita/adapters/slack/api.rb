@@ -22,7 +22,7 @@ module Lita
         end
 
         def im_open(user_id)
-          response_data = call_api("im.open", user: user_id)
+          response_data = call_api("conversations.open", user: user_id)
 
           SlackIM.new(response_data["channel"]["id"], user_id)
         end
