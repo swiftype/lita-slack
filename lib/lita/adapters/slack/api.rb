@@ -35,6 +35,10 @@ module Lita
           conversations_list(types: ["public_channel"], params: params)
         end
 
+        def users_list
+          call_api("users.list")
+        end
+
         def groups_list(params: {})
           response = conversations_list(types: ["private_channel"], params: params)
           response['groups'] = response['channels']
@@ -144,20 +148,20 @@ module Lita
         end
 
         def rtm_start
-          Lita.logger.debug("Starting `rtm_start` method")
-          response_data = call_api("rtm.start")
-          Lita.logger.debug("Started building TeamData")
-          team_data = TeamData.new(
-            SlackIM.from_data_array(response_data["ims"]),
-            SlackUser.from_data(response_data["self"]),
-            SlackUser.from_data_array(response_data["users"]),
-            SlackChannel.from_data_array(response_data["channels"]) +
-              SlackChannel.from_data_array(response_data["groups"]),
-            response_data["url"],
+          rtm_connect_response = call_api("rtm.connect")
+
+          channels = (
+            SlackChannel.from_data_array(channels_list["channels"]) +
+            SlackChannel.from_data_array(groups_list["groups"])
           )
-          Lita.logger.debug("Finished building TeamData")
-          Lita.logger.debug("Finishing method `rtm_start`")
-          team_data
+
+          TeamData.new(
+            SlackIM.from_data_array(im_list["ims"]),
+            SlackUser.from_data(rtm_connect_response["self"]),
+            SlackUser.from_data_array(users_list["members"]),
+            channels,
+            rtm_connect_response["url"]
+          )
         end
 
         private

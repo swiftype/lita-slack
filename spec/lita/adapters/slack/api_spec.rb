@@ -798,8 +798,24 @@ describe Lita::Adapters::Slack::API do
     let(:http_status) { 200 }
     let(:stubs) do
       Faraday::Adapter::Test::Stubs.new do |stub|
-        stub.post('https://slack.com/api/rtm.start', token: token) do
+        stub.post('https://slack.com/api/rtm.connect', token: token) do
           [http_status, {}, http_response]
+        end
+
+        stub.post('https://slack.com/api/users.list', token: token) do
+          [http_status, {}, MultiJson.dump({ok: true, members: [ id: "U023BECGF"]})]
+        end
+
+        stub.post('https://slack.com/api/conversations.list', token: token, types: 'public_channel') do
+          [http_status, {}, MultiJson.dump({ok: true, channels: [{id: 'C024BE91L'}]})]
+        end
+
+        stub.post('https://slack.com/api/conversations.list', token: token, types: 'private_channel') do
+          [http_status, {}, MultiJson.dump({ok: true, channels: [{id: 'G024BE91L'}]})]
+        end
+
+        stub.post('https://slack.com/api/conversations.list', token: token, types: 'im') do
+          [http_status, {}, MultiJson.dump({ok: true, channels: [{id: "D024BFF1M"}]})]
         end
       end
     end
@@ -809,11 +825,12 @@ describe Lita::Adapters::Slack::API do
         MultiJson.dump({
           ok: true,
           url: 'wss://example.com/',
-          users: [{ id: 'U023BECGF' }],
-          ims: [{ id: 'D024BFF1M' }],
           self: { id: 'U12345678' },
-          channels: [{ id: 'C1234567890' }],
-          groups: [{ id: 'G0987654321' }],
+          team: {
+            id: "T0ABC12DE",
+            name: "Foobar",
+              "domain": "foobar"
+          }
         })
       end
 
