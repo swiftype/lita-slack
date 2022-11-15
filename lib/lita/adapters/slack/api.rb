@@ -169,13 +169,12 @@ module Lita
         end
 
         def rtm_start
-          rtm_connect_response = call_api("rtm.connect")
-
           channels = (
             SlackChannel.from_data_array(channels_list["channels"]) +
             SlackChannel.from_data_array(groups_list["groups"])
           )
 
+          rtm_connect_response = call_api("rtm.connect")
           Lita.logger.debug("Start building rtm_start TeamData")
           team_data = TeamData.new(
             SlackIM.from_data_array(im_list["ims"]),
