@@ -1,5 +1,6 @@
 require 'faraday'
 
+require 'lita/adapters/slack/exceptions'
 require 'lita/adapters/slack/team_data'
 require 'lita/adapters/slack/slack_im'
 require 'lita/adapters/slack/slack_user'
@@ -65,27 +66,47 @@ module Lita
         end
 
         def call_paginated_api(method:, params:, result_field:)
-          result = call_api(
-            method,
-            params
-          )
+          retries = 0
+          max_retries = 10
+
+          begin
+            retries += 1
+            result = call_api(
+              method,
+              params
+            )
+          rescue RateLimitingError => e
+            raise if retries > max_retries
+
+            Lita.logger.debug("Rate-limited request to #{method}; retrying in #{e.response.headers['retry-after']}s")
+            sleep(e.response.headers['retry-after'].to_i)
+            retry
+          end
 
           next_cursor = fetch_cursor(result)
           old_cursor = nil
 
+          retries = 0
           while !next_cursor.nil? && !next_cursor.empty? && next_cursor != old_cursor
+            retries += 1
             old_cursor = next_cursor
             params[:cursor] = next_cursor
 
-            next_page = call_api(
-              method,
-              params
-            )
+            begin
+              next_page = call_api(
+                method,
+                params
+              )
+            rescue RateLimitingError => e
+              raise if retries > max_retries
 
-            if next_page['error'] == 'ratelimited' && next_page['retry_after'] < 5
-              sleep(next_page['retry_after'])
+              # add some jitter in the hopes of slack letting us briefly get back to unthrottled burst-mode
+              retry_delay = e.response.headers['retry-after'].to_i * rand(2..6)
+              Lita.logger.debug("Rate-limited request to #{method}; retrying in #{retry_delay}s")
+              sleep(retry_delay)
               old_cursor = nil
             else
+              retries = 0
               next_cursor = fetch_cursor(next_page)
               result[result_field] += next_page[result_field]
             end
@@ -148,13 +169,12 @@ module Lita
         end
 
         def rtm_start
-          rtm_connect_response = call_api("rtm.connect")
-
           channels = (
             SlackChannel.from_data_array(channels_list["channels"]) +
             SlackChannel.from_data_array(groups_list["groups"])
           )
 
+          rtm_connect_response = call_api("rtm.connect")
           Lita.logger.debug("Start building rtm_start TeamData")
           team_data = TeamData.new(
             SlackIM.from_data_array(im_list["ims"]),
@@ -183,6 +203,8 @@ module Lita
           Lita.logger.debug("Finished Slack API request: #{method}")
           data = parse_response(response, method)
           Lita.logger.debug("Finished parsing #{method} response")
+
+          raise RateLimitingError.new('Slack API request rate-limited', response, data) if data['error'] == 'ratelimited'
           raise "Slack API call to #{method} returned an error: #{data["error"]}." if data["error"]
 
           data
