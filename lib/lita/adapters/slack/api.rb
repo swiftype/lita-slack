@@ -100,8 +100,7 @@ module Lita
             rescue RateLimitingError => e
               raise if retries > max_retries
 
-              # add some jitter in the hopes of slack letting us briefly get back to unthrottled burst-mode
-              retry_delay = e.response.headers['retry-after'].to_i * rand(2..6)
+              retry_delay = e.response.headers['retry-after'].to_i
               Lita.logger.debug("Rate-limited request to #{method}; retrying in #{retry_delay}s")
               sleep(retry_delay)
               old_cursor = nil
