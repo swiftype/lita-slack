@@ -60,7 +60,8 @@ module Lita
 
         def conversations_list(types: ["public_channel"], params: {})
           params.merge!({
-            types: types.join(',')
+            types: types.join(','),
+            limit: 500, # reduce the number of paginated api requests we make (there are many channels)
           })
           call_paginated_api(method: 'conversations.list', params: params, result_field: 'channels')
         end
