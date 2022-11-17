@@ -60,7 +60,8 @@ module Lita
 
         def conversations_list(types: ["public_channel"], params: {})
           params.merge!({
-            types: types.join(',')
+            types: types.join(','),
+            limit: 500, # reduce the number of paginated api requests we make (there are many channels)
           })
           call_paginated_api(method: 'conversations.list', params: params, result_field: 'channels')
         end
@@ -100,8 +101,7 @@ module Lita
             rescue RateLimitingError => e
               raise if retries > max_retries
 
-              # add some jitter in the hopes of slack letting us briefly get back to unthrottled burst-mode
-              retry_delay = e.response.headers['retry-after'].to_i * rand(2..6)
+              retry_delay = e.response.headers['retry-after'].to_i
               Lita.logger.debug("Rate-limited request to #{method}; retrying in #{retry_delay}s")
               sleep(retry_delay)
               old_cursor = nil
