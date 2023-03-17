@@ -1,5 +1,6 @@
 require 'lita/adapters/slack/chat_service'
 require 'lita/adapters/slack/rtm_connection'
+require 'net/http'
 
 module Lita
   module Adapters
@@ -30,8 +31,14 @@ module Lita
         @rtm_connection = RTMConnection.build(robot, config)
 
         Lita.logger.debug("Done building RTM connection")
-        rtm_connection.run(&block)
+
+        Lita.logger.info("SSL connection is going to be verified by Net::HTTP and OpenSSL")
+        verify_ssl_connection
+
+        rtm_connection.run(nil, { tls: { verify_peer: false }  }, &block)
       end
+
+
 
       # Returns UID(s) in an Array or String for:
       # Channels, MPIMs, IMs
@@ -122,6 +129,23 @@ module Lita
           roster.empty? ? mpim_roster(room_id, api) : roster
         when /^D/
           im_roster room_id, api
+        end
+      end
+
+      def verify_ssl_connection(host = "wss-primary.slack.com", max_retries = 10, wait_time = 5)
+        ok = false
+        ssl_retry = 0
+        while !ok && ssl_retry < max_retries
+          begin
+            Net::HTTP.start(host, '443', use_ssl: true) { |http| http.peer_cert }
+            Lita.logger.info("SSL connection is verified")
+            ok = true
+          rescue OpenSSL::SSL::SSLError => e
+            Lita.logger.info("SSL connection is not verified. Retry #{ssl_retry+1}. Error: #{e.message}. Backtrace: #{e.backtrace}")
+            raise if ssl_retry == max_retries
+            ok = false
+            sleep(wait_time)
+          end
         end
       end
     end
