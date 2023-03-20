@@ -1,6 +1,8 @@
 require 'faye/websocket'
 require 'multi_json'
 
+require 'lita/adapters/slack/faye_monkeypatch'
+
 require 'lita/adapters/slack/api'
 require 'lita/adapters/slack/event_loop'
 require 'lita/adapters/slack/im_mapping'
